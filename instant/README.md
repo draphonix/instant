@@ -1,4 +1,4 @@
-# BUDDIES CLI
+# INSTANT CLI
 
 ## Description
 Contains all mini scripts that help boost productiviy when working with WWE project.
