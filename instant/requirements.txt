@@ -1,0 +1,10 @@
+boto3
+keyring
+bs4
+pycrypto
+python-dotenv
+paramiko
+pymysql
+sshtunnel
+click
+requests

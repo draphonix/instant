@@ -1,0 +1,1 @@
+from .instant import cli
