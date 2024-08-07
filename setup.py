@@ -6,7 +6,8 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'Click',
+        'click',
+        'python-dotenv',
     ],
     entry_points={
         'console_scripts': [
