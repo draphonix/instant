@@ -57,10 +57,17 @@ class JiraHelper:
             
             if entry_date == today:
                 title = entry.find('{http://www.w3.org/2005/Atom}title').text
-                pattern = rf'href="({jira_base_url}browse/{project_key}-\d+)">\s*({project_key}-\d+.+?)(?=</a>)'
-
-                print(pattern)
-                match = re.search(pattern, title, re.DOTALL)
+                patterns = [
+                    rf'href="({jira_base_url}browse/{project_key}-\d+)">\s*({project_key}-\d+.+?)(?=</a>)',
+                    rf'href="({jira_base_url}browse/{project_key}-\d+)"><span class=\'resolved-link\'>{project_key}-\d+</span>\s*-\s*(.+?)(?=</a>)'
+                ]
+                
+                match = None
+                for pattern in patterns:
+                    match = re.search(pattern, title, re.DOTALL)
+                    if match:
+                        break
+                
                 if match:
                     issue_link = match.group(1)
                     issue_title = re.sub(r'\s+', ' ', match.group(2)).strip()
@@ -71,6 +78,8 @@ class JiraHelper:
                         print(f"Duplicate issue link found: {issue_link}")
                 else:
                     print("No match found!!")
+                    print(f'patterns: {patterns}')
+                    print(f'title: {title}')
         return activities
 
     def get_activity_stream(self, email: str, start_timestamp: int, end_timestamp: int, token: str) -> dict:
@@ -94,8 +103,4 @@ class JiraHelper:
         response = requests.get(url, headers=headers)
         response.raise_for_status()  # Raise an error for bad status codes
         return response.content
-    
-    
-
-
     
