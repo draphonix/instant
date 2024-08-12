@@ -86,5 +86,92 @@ Host {instance_name}
     
     click.echo(f"SSH profile for {instance_name} updated/created in {ssh_config_path}")
 
+def get_ssh_targets():
+    """
+    Retrieve the list of HostNames from the SSH config file.
+
+    Returns:
+    - List of HostNames.
+    """
+    ssh_config_path = os.path.expanduser('~/.ssh/config')
+    if not os.path.exists(ssh_config_path):
+        return []
+
+    with open(ssh_config_path, 'r') as ssh_config_file:
+        lines = ssh_config_file.readlines()
+
+    hostnames = [line.split()[1] for line in lines if line.startswith('Host ')]
+    return hostnames
+
+@cli.command()
+@click.option(
+    '--ssh-target', 
+    type=click.Choice(get_ssh_targets()), 
+    prompt='SSH target (e.g., user@host)', 
+    help='The SSH target to connect to.'
+)
+def deploy_and_restart(ssh_target):
+    """
+    Deploy the current branch to the remote instance and restart the project.
+
+    Parameters:
+    - ssh_target: str - The SSH target to connect to.
+    """
+    # Get the current branch of the project
+    project_path = os.getenv('PROJECT_LOCAL_PATH')
+    current_branch = subprocess.check_output(
+        ['git', '-C', project_path, 'rev-parse', '--abbrev-ref', 'HEAD']
+    ).strip().decode('utf-8')
+    
+    click.echo(f"Current branch: {current_branch}")
+    
+    # Get the list of changed files
+    changed_files = subprocess.check_output(
+        ['git', '-C', project_path, 'diff', '--name-only', 'HEAD']
+    ).strip().decode('utf-8').split('\n')
+    
+    click.echo(f"Changed files: {changed_files}")
+    
+    # SSH and perform operations
+    project_remote_path = os.getenv('PROJECT_REMOTE_PATH')
+    temp_remote_path = "/tmp/deploy_temp"
+    ssh_commands = f"""
+ssh -T {ssh_target} << 'EOF'
+cd {project_remote_path}
+sudo git stash
+sudo git checkout {current_branch}
+sudo git pull
+mkdir -p {temp_remote_path}
+EOF
+    """
+    click.echo(ssh_commands)
+    subprocess.run(ssh_commands, shell=True)
+    
+#     # Copy changed files to a temporary directory on the remote instance
+    for file in changed_files:
+        local_file_path = os.path.join(project_path, file)
+        remote_temp_file_path = os.path.join(temp_remote_path, file)
+        remote_temp_dir = os.path.dirname(remote_temp_file_path)
+        click.echo(f'remote temp dir: {remote_temp_dir}')
+        # Create the necessary directories on the remote server
+        ssh_mkdir_command = f"ssh -T {ssh_target} 'mkdir -p {remote_temp_dir}'"
+        subprocess.run(ssh_mkdir_command, shell=True)
+        
+        # Copy the file to the remote server
+        scp_command = f"scp {local_file_path} {ssh_target}:{remote_temp_file_path}"
+        subprocess.run(scp_command, shell=True)
+    
+    # SSH and move files to the desired location with sudo, then restart
+    ssh_commands = f"""
+ssh -T {ssh_target} << 'EOF'
+cd {project_remote_path}
+sudo cp -r {temp_remote_path}/* {project_remote_path}/
+sudo rm -rf {temp_remote_path}
+sudo {os.getenv('PROJECT_RESTART_COMMAND')}
+EOF
+    """
+    subprocess.run(ssh_commands, shell=True)
+    click.echo(f"Project on branch {current_branch} deployed and restarted on {ssh_target}")
+
 if __name__ == '__main__':
     cli()
