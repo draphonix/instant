@@ -1,7 +1,7 @@
 boto3
 keyring
 bs4
-pycrypto
+pycryptodome
 python-dotenv
 paramiko
 pymysql
