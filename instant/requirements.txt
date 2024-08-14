@@ -8,3 +8,4 @@ pymysql
 sshtunnel
 click
 requests
+Pillow
