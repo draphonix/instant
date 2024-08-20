@@ -108,7 +108,8 @@ def get_ssh_targets():
     '--ssh-target', 
     type=click.Choice(get_ssh_targets()), 
     prompt='SSH target (e.g., user@host)', 
-    help='The SSH target to connect to.'
+    help='The SSH target to connect to.',
+    default=lambda: 'wwe-brick' if get_ssh_targets() else None
 )
 def deploy_and_restart(ssh_target):
     """
