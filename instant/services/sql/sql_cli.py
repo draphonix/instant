@@ -2,6 +2,7 @@ import click
 import os
 from instant.utils.constants import DEFAULT_REGIONS, IGNORED_TABLES
 from sql_helper import SqlHelper
+from sql_local_helper import SqlLocalHelper
 from aws.aws_helper import AwsHelper
 from instant.utils.general_helper import GeneralHelper
 
@@ -66,46 +67,66 @@ def dump_data(prefix):
               help='This helps filter the instances result.')
 @click.option('--aws-profile', default=os.getenv("AWS_PROFILE"), 
               help='AWS profile to use (optional).')
-@click.option('--source-folder', prompt='Please provide the source data folder', help='Exported data folder' )
-def import_data(prefix, aws_profile, source_folder):
-    """Import SQL files from a specified folder into the database."""
-    click.echo("Select the AWS region:")
-    for index, region in enumerate(DEFAULT_REGIONS, start=1):
-        click.echo(f"{index}. {region}")
-    
-    choice = click.prompt("Enter the number of your choice", type=int)
-    region = DEFAULT_REGIONS[choice - 1]
-    click.echo(f"Selected region: {region}, prefix {prefix}")
+@click.option('--source-folder', prompt='Please provide the source data folder', help='Exported data folder')
+@click.option('--local', is_flag=True, help='Flag to indicate if the operation is local.')
+def import_data(prefix, aws_profile, source_folder, local):
+    """
+    Import SQL files from a specified folder into the database.
 
-    # Initialize the AWS helper
-    aws_helper = AwsHelper(aws_profile=aws_profile, aws_region=region)
-    instances = aws_helper.get_running_instances(prefix)
-    
-    if not instances:
-        click.echo("No running instances found with the given prefix.")
-        return
+    Parameters:
+    - prefix (str): Instance prefix to filter the instances.
+    - aws_profile (str): AWS profile to use (optional).
+    - source_folder (str): Folder containing the SQL files to import.
+    - local (bool): Flag to indicate if the operation is local.
+    """
+    if local:
+        click.echo(f"Running in local mode, prefix {prefix}")
+        sql_helper = SqlLocalHelper(
+            rds_host='127.0.0.1',
+            rds_port=int(os.getenv('LOCAL_RDS_PORT')),
+            rds_user=os.getenv('LOCAL_RDS_USER'),
+            rds_password=os.getenv('LOCAL_RDS_PASSWORD'),
+            rds_db=os.getenv('LOCAL_RDS_DB'),
+        )
+        sql_helper.import_data_local(sql_folder=source_folder)
+    else:
+        click.echo("Select the AWS region:")
+        for index, region in enumerate(DEFAULT_REGIONS, start=1):
+            click.echo(f"{index}. {region}")
+        
+        choice = click.prompt("Enter the number of your choice", type=int)
+        region = DEFAULT_REGIONS[choice - 1]
+        click.echo(f"Selected region: {region}, prefix {prefix}")
 
-    instance_names = [instance.name for instance in instances]
-    selected_instance_name = GeneralHelper.select_option(instance_names)
-    selected_instance = next(instance for instance in instances if instance.name == selected_instance_name)
+        # Initialize the AWS helper
+        aws_helper = AwsHelper(aws_profile=aws_profile, aws_region=region)
+        instances = aws_helper.get_running_instances(prefix)
+        
+        if not instances:
+            click.echo("No running instances found with the given prefix.")
+            return
 
-    # List available RDS instances in the selected region
-    list_rds = aws_helper.list_available_rds()
-    rds_endpoints = [rds.endpoint for rds in list_rds]
-    selected_rds_endpoint = GeneralHelper.select_option(rds_endpoints)
+        instance_names = [instance.name for instance in instances]
+        selected_instance_name = GeneralHelper.select_option(instance_names)
+        selected_instance = next(instance for instance in instances if instance.name == selected_instance_name)
 
-    # Initialize the SqlHelper
-    sql_helper = SqlHelper(
-        ssh_host=selected_instance.public_ip,
-        ssh_port=22,
-        ssh_user=os.getenv('SSH_USER'),
-        ssh_pkey=os.getenv('KEY_PATH'),
-        rds_host=selected_rds_endpoint,
-        rds_port=int(os.getenv('RDS_PORT')),
-        rds_user=os.getenv('RDS_USER'),
-        rds_password=os.getenv('RDS_PASSWORD'),
-        rds_db=os.getenv('RDS_DB'),
-    )
+        # List available RDS instances in the selected region
+        list_rds = aws_helper.list_available_rds()
+        rds_endpoints = [rds.endpoint for rds in list_rds]
+        selected_rds_endpoint = GeneralHelper.select_option(rds_endpoints)
 
-    # Call the import_data method
-    sql_helper.import_data(sql_folder=source_folder)
+        # Initialize the SqlHelper
+        sql_helper = SqlHelper(
+            ssh_host=selected_instance.public_ip,
+            ssh_port=22,
+            ssh_user=os.getenv('SSH_USER'),
+            ssh_pkey=os.getenv('KEY_PATH'),
+            rds_host=selected_rds_endpoint,
+            rds_port=int(os.getenv('RDS_PORT')),
+            rds_user=os.getenv('RDS_USER'),
+            rds_password=os.getenv('RDS_PASSWORD'),
+            rds_db=os.getenv('RDS_DB'),
+        )
+
+        # Call the import_data method
+        sql_helper.import_data(sql_folder=source_folder)

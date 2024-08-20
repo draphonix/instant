@@ -65,7 +65,7 @@ def import_single_file(
     ) as tunnel:
         # Define the mysql command for importing
         mysql_command = [
-            "/usr/local/bin/mysqll",
+            "/usr/local/bin/mysql",
             "--defaults-file=" + os.path.join(os.path.dirname(__file__), '.db.cnf'),  # Update path here
             f"--database={rds_db}",
             "--host=127.0.0.1",
